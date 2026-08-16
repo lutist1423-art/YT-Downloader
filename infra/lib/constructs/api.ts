@@ -102,6 +102,15 @@ export class ApiConstruct extends Construct {
       })
     );
 
+    const adminSetUserPasswordFn = makeFn("AdminSetUserPasswordFn", "adminSetUserPassword.ts");
+    adminSetUserPasswordFn.addEnvironment("USER_POOL_ID", props.userPool.userPoolId);
+    adminSetUserPasswordFn.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ["cognito-idp:AdminSetUserPassword"],
+        resources: [props.userPool.userPoolArn],
+      })
+    );
+
     const adminSetUserCookiesFn = makeFn("AdminSetUserCookiesFn", "adminSetUserCookies.ts");
     props.userCookiesBucket.grantPut(adminSetUserCookiesFn);
     props.usersTable.grantReadWriteData(adminSetUserCookiesFn);
@@ -120,6 +129,7 @@ export class ApiConstruct extends Construct {
           apigwv2.CorsHttpMethod.GET,
           apigwv2.CorsHttpMethod.POST,
           apigwv2.CorsHttpMethod.PATCH,
+          apigwv2.CorsHttpMethod.PUT,
           apigwv2.CorsHttpMethod.DELETE,
           apigwv2.CorsHttpMethod.OPTIONS,
         ],
@@ -198,6 +208,12 @@ export class ApiConstruct extends Construct {
       path: "/admin/users/{userId}/reset-password",
       methods: [apigwv2.HttpMethod.POST],
       integration: new integrations.HttpLambdaIntegration("AdminResetUserPasswordInt", adminResetUserPasswordFn),
+      authorizer: adminAuthorizer,
+    });
+    this.httpApi.addRoutes({
+      path: "/admin/users/{userId}/password",
+      methods: [apigwv2.HttpMethod.PUT],
+      integration: new integrations.HttpLambdaIntegration("AdminSetUserPasswordInt", adminSetUserPasswordFn),
       authorizer: adminAuthorizer,
     });
     this.httpApi.addRoutes({

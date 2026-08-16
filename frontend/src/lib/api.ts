@@ -40,7 +40,7 @@ async function tokenFor(area: Area): Promise<string> {
 }
 
 interface RequestOptions {
-  method?: "GET" | "POST" | "PATCH" | "DELETE";
+  method?: "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
   body?: unknown;
 }
 
@@ -151,6 +151,14 @@ export function adminResetUserPassword(userId: string): Promise<{ message: strin
     "admin",
     `/admin/users/${encodeURIComponent(userId)}/reset-password`,
     { method: "POST" }
+  );
+}
+
+export function adminSetUserPassword(userId: string, password: string): Promise<{ message: string }> {
+  return request<{ message: string }>(
+    "admin",
+    `/admin/users/${encodeURIComponent(userId)}/password`,
+    { method: "PUT", body: { password } }
   );
 }
 
