@@ -4,6 +4,7 @@ import {
   adminDeleteUserCookies,
   adminResetUserPassword,
   adminSetUserCookies,
+  adminSetUserPassword,
   ApiError,
   getUserDownloads,
   listAdminUsers,
@@ -31,6 +32,10 @@ export default function AdminDashboard(): JSX.Element {
 
   const [resetBusyUserId, setResetBusyUserId] = useState<string | null>(null);
   const [resetMessage, setResetMessage] = useState<{ userId: string; text: string } | null>(null);
+
+  const [newPassword, setNewPassword] = useState("");
+  const [passwordBusyUserId, setPasswordBusyUserId] = useState<string | null>(null);
+  const [passwordMessage, setPasswordMessage] = useState<{ userId: string; text: string } | null>(null);
 
   const [cookiesBusyUserId, setCookiesBusyUserId] = useState<string | null>(null);
   const [cookiesText, setCookiesText] = useState("");
@@ -118,6 +123,8 @@ export default function AdminDashboard(): JSX.Element {
     setCookiesText("");
     setCookiesFileName(null);
     setCookiesMessage(null);
+    setNewPassword("");
+    setPasswordMessage(null);
     try {
       const res = await getUserDownloads(userId);
       setExpandedDownloads(res.items);
@@ -141,6 +148,24 @@ export default function AdminDashboard(): JSX.Element {
       setResetMessage({ userId, text: err instanceof Error ? err.message : "Failed to reset password." });
     } finally {
       setResetBusyUserId(null);
+    }
+  }
+
+  async function handleSetPassword(userId: string) {
+    if (newPassword.length < 10) {
+      setPasswordMessage({ userId, text: "Password must be at least 10 characters." });
+      return;
+    }
+    setPasswordBusyUserId(userId);
+    setPasswordMessage(null);
+    try {
+      await adminSetUserPassword(userId, newPassword);
+      setPasswordMessage({ userId, text: "Password set. The user can log in with it immediately." });
+      setNewPassword("");
+    } catch (err) {
+      setPasswordMessage({ userId, text: err instanceof Error ? err.message : "Failed to set password." });
+    } finally {
+      setPasswordBusyUserId(null);
     }
   }
 
@@ -284,6 +309,39 @@ export default function AdminDashboard(): JSX.Element {
                       {expandedUserId === user.userId && (
                         <tr>
                           <td colSpan={5} className="table__expanded">
+                            <div className="admin-user-cookies">
+                              <h3>Set password</h3>
+                              <p className="hint">
+                                Sets a specific password directly - the user can log in with it
+                                immediately, no email step needed. At least 10 characters,
+                                including uppercase, lowercase, and a digit.
+                              </p>
+                              <div className="cookies-form">
+                                <input
+                                  type="password"
+                                  placeholder="New password"
+                                  value={newPassword}
+                                  onChange={(e) => setNewPassword(e.target.value)}
+                                  disabled={passwordBusyUserId === user.userId}
+                                  className="credits-input"
+                                  style={{ width: "16rem" }}
+                                />
+                                <div className="cookies-form__actions">
+                                  <button
+                                    className="btn btn--small"
+                                    type="button"
+                                    disabled={passwordBusyUserId === user.userId || newPassword.length < 10}
+                                    onClick={() => handleSetPassword(user.userId)}
+                                  >
+                                    {passwordBusyUserId === user.userId ? "Setting..." : "Set password"}
+                                  </button>
+                                </div>
+                              </div>
+                              {passwordMessage?.userId === user.userId && (
+                                <p className="hint">{passwordMessage.text}</p>
+                              )}
+                            </div>
+
                             <div className="admin-user-cookies">
                               <h3>YouTube cookies</h3>
                               <p className="hint">
