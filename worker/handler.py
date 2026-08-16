@@ -159,15 +159,22 @@ def _build_ydl_opts(work_dir: str, fmt: str, quality: str, user_id: str) -> dict
         "no_warnings": True,
         "restrictfilenames": True,
         "ffmpeg_location": "/usr/local/bin",
-        # The "web" client frequently triggers YouTube's "Sign in to confirm
-        # you're not a bot" check for datacenter/cloud IPs (e.g. Lambda).
-        # The android/ios embedded clients are less likely to hit it.
-        "extractor_args": {"youtube": {"player_client": ["android", "ios", "web"]}},
     }
 
     cookies_file = _resolve_cookies_file(user_id)
     if cookies_file:
         opts["cookiefile"] = cookies_file
+        # The android/ios embedded clients ignore browser cookies entirely
+        # (they use a different, token-based auth model YouTube has locked
+        # down separately) and increasingly return no formats at all without
+        # one. With real cookies available, "web" is what actually uses
+        # them and gives the full format list.
+        opts["extractor_args"] = {"youtube": {"player_client": ["web"]}}
+    else:
+        # No cookies available for this user (or the fallback): the android
+        # client used to dodge the bot-check without cookies, though it's
+        # becoming less reliable too as YouTube extends token requirements.
+        opts["extractor_args"] = {"youtube": {"player_client": ["android", "ios", "web"]}}
 
     if fmt == "mp3":
         opts["format"] = "bestaudio/best"
