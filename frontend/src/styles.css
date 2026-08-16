@@ -1,0 +1,484 @@
+:root {
+  --color-bg: #f4f6f8;
+  --color-surface: #ffffff;
+  --color-border: #dde3ea;
+  --color-text: #1c2530;
+  --color-text-muted: #62717f;
+  --color-primary: #2f6fed;
+  --color-primary-hover: #2559c4;
+  --color-danger: #d64545;
+  --color-danger-bg: #fdeceb;
+  --color-info-bg: #e8f1ff;
+  --color-info-text: #1d4ed8;
+  --color-warning-bg: #fff6e0;
+  --color-warning-text: #8a6100;
+
+  --color-user-accent: #2f6fed;
+  --color-admin-accent: #1f2937;
+  --color-admin-accent-2: #b91c1c;
+
+  --radius: 10px;
+  --shadow: 0 1px 3px rgba(20, 30, 45, 0.08), 0 1px 2px rgba(20, 30, 45, 0.06);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial,
+    sans-serif;
+  background: var(--color-bg);
+  color: var(--color-text);
+  line-height: 1.5;
+}
+
+h1,
+h2,
+h3 {
+  margin: 0 0 0.5rem 0;
+  line-height: 1.25;
+}
+
+a {
+  color: var(--color-primary);
+}
+
+.page {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.container {
+  width: 100%;
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 1.5rem 1rem 3rem;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+/* ---------- Header ---------- */
+
+.app-header {
+  color: #fff;
+}
+
+.app-header--user {
+  background: var(--color-user-accent);
+}
+
+.app-header--admin {
+  background: linear-gradient(90deg, var(--color-admin-accent), var(--color-admin-accent-2));
+}
+
+.app-header__inner {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.app-header__title {
+  font-weight: 700;
+  font-size: 1.1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.app-header__badge {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 999px;
+  padding: 0.15rem 0.6rem;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* ---------- Cards / auth ---------- */
+
+.auth-page {
+  min-height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1rem;
+}
+
+.auth-page--admin {
+  background: #111827;
+}
+
+.auth-card {
+  background: var(--color-surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 2rem;
+  width: 100%;
+  max-width: 420px;
+}
+
+.auth-card h1 {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 1.4rem;
+}
+
+.auth-card__subtitle {
+  color: var(--color-text-muted);
+  margin: 0 0 1.25rem 0;
+  font-size: 0.92rem;
+}
+
+.auth-card__footer {
+  text-align: center;
+  margin: 0.75rem 0 0 0;
+  font-size: 0.9rem;
+}
+
+.auth-card__footer--muted {
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+}
+
+.landing-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.landing-actions .btn {
+  flex: 1;
+  text-align: center;
+}
+
+.card {
+  background: var(--color-surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 1.5rem;
+}
+
+/* ---------- Forms ---------- */
+
+.field {
+  display: block;
+  margin-bottom: 1rem;
+}
+
+.field span {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-bottom: 0.3rem;
+  color: var(--color-text);
+}
+
+.field input,
+.download-form input,
+.credits-input {
+  width: 100%;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  font-size: 1rem;
+  background: #fff;
+  color: var(--color-text);
+}
+
+.field input:focus,
+.download-form input:focus,
+.credits-input:focus {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 1px;
+}
+
+.download-form {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.75rem;
+}
+
+.download-form input {
+  flex: 1;
+  min-width: 220px;
+}
+
+.credits-input {
+  width: 6rem;
+}
+
+/* ---------- Buttons ---------- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.6rem 1.1rem;
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  background: #fff;
+  color: var(--color-text);
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.btn:hover:not(:disabled) {
+  border-color: var(--color-primary);
+}
+
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.btn--primary {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #fff;
+  width: 100%;
+}
+
+.btn--primary:hover:not(:disabled) {
+  background: var(--color-primary-hover);
+  border-color: var(--color-primary-hover);
+}
+
+.btn--ghost {
+  background: transparent;
+  border-color: rgba(255, 255, 255, 0.6);
+  color: inherit;
+}
+
+.app-header .btn--ghost {
+  color: #fff;
+}
+
+.btn--ghost:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.btn--link {
+  background: none;
+  border: none;
+  color: var(--color-primary);
+  width: 100%;
+  margin-top: 0.5rem;
+  font-weight: 500;
+}
+
+.btn--link:hover:not(:disabled) {
+  text-decoration: underline;
+}
+
+.btn--small {
+  padding: 0.35rem 0.7rem;
+  font-size: 0.82rem;
+}
+
+/* ---------- Alerts / hints ---------- */
+
+.alert {
+  padding: 0.7rem 0.9rem;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  margin-bottom: 1rem;
+}
+
+.alert--error {
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+}
+
+.alert--info {
+  background: var(--color-info-bg);
+  color: var(--color-info-text);
+}
+
+.hint {
+  color: var(--color-text-muted);
+  font-size: 0.88rem;
+}
+
+.hint--warning {
+  background: var(--color-warning-bg);
+  color: var(--color-warning-text);
+  padding: 0.6rem 0.8rem;
+  border-radius: 8px;
+}
+
+/* ---------- Credits summary ---------- */
+
+.credits-summary {
+  display: flex;
+  gap: 2rem;
+}
+
+.credits-summary__stat {
+  display: flex;
+  flex-direction: column;
+}
+
+.credits-summary__value {
+  font-size: 2rem;
+  font-weight: 700;
+}
+
+.credits-summary__label {
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+}
+
+/* ---------- Tables ---------- */
+
+.table-wrap {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92rem;
+}
+
+.table th,
+.table td {
+  text-align: left;
+  padding: 0.6rem 0.5rem;
+  border-bottom: 1px solid var(--color-border);
+  vertical-align: top;
+}
+
+.table th {
+  color: var(--color-text-muted);
+  font-weight: 600;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.table__url {
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.table__error {
+  color: var(--color-danger);
+  font-size: 0.8rem;
+  margin-top: 0.2rem;
+}
+
+.table__actions {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.table__expanded {
+  background: var(--color-bg);
+}
+
+.table--nested {
+  font-size: 0.85rem;
+}
+
+/* ---------- Status badges ---------- */
+
+.status-badge {
+  display: inline-block;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.status-badge--queued {
+  background: #eef0f3;
+  color: #4b5563;
+}
+
+.status-badge--processing {
+  background: var(--color-info-bg);
+  color: var(--color-info-text);
+}
+
+.status-badge--completed {
+  background: #e5f6ec;
+  color: #167a3f;
+}
+
+.status-badge--failed {
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+}
+
+/* ---------- Admin MFA setup ---------- */
+
+.mfa-qr {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 1rem;
+}
+
+.mfa-qr img {
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: #fff;
+  padding: 0.5rem;
+}
+
+.mfa-secret {
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  margin-bottom: 1rem;
+  word-break: break-all;
+}
+
+/* ---------- Footer ---------- */
+
+.copyright-notice {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 1rem;
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+  text-align: center;
+  border-top: 1px solid var(--color-border);
+}
+
+/* ---------- Responsive ---------- */
+
+@media (max-width: 600px) {
+  .auth-card {
+    padding: 1.25rem;
+  }
+
+  .credits-summary {
+    gap: 1.25rem;
+  }
+
+  .app-header__title {
+    font-size: 1rem;
+  }
+}
