@@ -206,11 +206,30 @@ def _find_output_file(work_dir: str, video_id: str) -> str:
 def _download_video(video_url: str, work_dir: str, fmt: str, quality: str, user_id: str) -> tuple[str, str]:
     ydl_opts = _build_ydl_opts(work_dir, fmt, quality, user_id)
 
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        info = ydl.extract_info(video_url, download=True)
-        title = info.get("title", "video")
-        final_path = _find_output_file(work_dir, info["id"])
-        return final_path, title
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(video_url, download=True)
+    except yt_dlp.utils.DownloadError as exc:
+        # The requested height/codec combination isn't always available for
+        # every video (different YouTube player clients expose different
+        # format lists). Retry once with the most permissive selector
+        # possible - whatever single format yt-dlp considers "best" - rather
+        # than failing outright and burning the user's credit.
+        if fmt != "mp3" and "Requested format is not available" in str(exc):
+            logger.warning("Primary format selector failed for %s, retrying with format=best", video_url)
+            fallback_opts = dict(ydl_opts)
+            fallback_opts["format"] = "best"
+            fallback_opts["postprocessors"] = [
+                {"key": "FFmpegVideoConvertor", "preferedformat": "mp4"}
+            ]
+            with yt_dlp.YoutubeDL(fallback_opts) as ydl:
+                info = ydl.extract_info(video_url, download=True)
+        else:
+            raise
+
+    title = info.get("title", "video")
+    final_path = _find_output_file(work_dir, info["id"])
+    return final_path, title
 
 
 def _process_record(body: dict) -> None:
