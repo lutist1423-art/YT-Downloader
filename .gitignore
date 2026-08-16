@@ -1,0 +1,12 @@
+node_modules/
+dist/
+build/
+cdk.out/
+cdk.context.json
+*.js.map
+.env
+.env.local
+.DS_Store
+*.log
+cdk-outputs.json
+.aws-sam/
