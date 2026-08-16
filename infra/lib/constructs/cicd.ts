@@ -54,13 +54,23 @@ export class CicdConstruct extends Construct {
           clientIds: ["sts.amazonaws.com"],
         });
 
+    // GitHub's OIDC `sub` claim is normally "repo:{owner}/{repo}:ref:refs/heads/{branch}",
+    // but repos/orgs that have enabled "include repository and owner IDs in
+    // the JWT sub claim" (a rename/transfer-hardening setting) instead emit
+    // "repo:{owner}@{ownerId}/{repo}@{repoId}:ref:refs/heads/{branch}". This
+    // account has that setting on, so match both formats to be robust
+    // either way.
+    const [repoOwner, repoName] = props.githubRepo.split("/");
     const githubPrincipal = (branch: string) =>
       new iam.WebIdentityPrincipal(provider.openIdConnectProviderArn, {
         StringEquals: {
           "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
         },
         StringLike: {
-          "token.actions.githubusercontent.com:sub": `repo:${props.githubRepo}:ref:refs/heads/${branch}`,
+          "token.actions.githubusercontent.com:sub": [
+            `repo:${props.githubRepo}:ref:refs/heads/${branch}`,
+            `repo:${repoOwner}@*/${repoName}@*:ref:refs/heads/${branch}`,
+          ],
         },
       });
 
