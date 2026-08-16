@@ -52,6 +52,40 @@ class TerminalDownloadError(Exception):
     """A failure that should NOT be retried by SQS (bad URL, private video, etc.)."""
 
 
+class _CapturingLogger:
+    """
+    Passed to yt-dlp as its `logger` so we can surface the PO token provider's
+    own debug output (e.g. whether bgutil-ytdlp-pot-provider was actually
+    discovered/available) on failure, without needing CloudWatch access -
+    diagnosable straight from the app's download-history UI. Also forwards
+    everything to the real logger so it still ends up in CloudWatch.
+    """
+
+    def __init__(self) -> None:
+        self.lines: list[str] = []
+
+    def debug(self, msg: str) -> None:
+        self.lines.append(msg)
+        logger.info("[yt-dlp] %s", msg)
+
+    def info(self, msg: str) -> None:
+        self.lines.append(msg)
+        logger.info("[yt-dlp] %s", msg)
+
+    def warning(self, msg: str) -> None:
+        self.lines.append(msg)
+        logger.warning("[yt-dlp] %s", msg)
+
+    def error(self, msg: str) -> None:
+        self.lines.append(msg)
+        logger.error("[yt-dlp] %s", msg)
+
+    def pot_summary(self) -> str:
+        """Debug lines related to PO token provider discovery/use, most recent first."""
+        relevant = [l for l in self.lines if "pot" in l.lower() or "bgutil" in l.lower()]
+        return " | ".join(relevant[-3:]) if relevant else "no pot-related debug output"
+
+
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -160,8 +194,9 @@ def _resolve_cookies_file(user_id: str) -> tuple[str | None, str]:
     return None, "none"
 
 
-def _build_ydl_opts(work_dir: str, fmt: str, quality: str, user_id: str) -> tuple[dict, str]:
+def _build_ydl_opts(work_dir: str, fmt: str, quality: str, user_id: str) -> tuple[dict, str, "_CapturingLogger"]:
     output_template = os.path.join(work_dir, "%(id)s.%(ext)s")
+    capturing_logger = _CapturingLogger()
 
     opts = {
         "outtmpl": output_template,
@@ -171,6 +206,10 @@ def _build_ydl_opts(work_dir: str, fmt: str, quality: str, user_id: str) -> tupl
         "no_warnings": True,
         "restrictfilenames": True,
         "ffmpeg_location": "/usr/local/bin",
+        "logger": capturing_logger,
+        # write_debug() (which is what logs PO token provider discovery) is a
+        # no-op unless verbose is set, regardless of quiet/logger.
+        "verbose": True,
     }
 
     cookies_file, cookies_source = _resolve_cookies_file(user_id)
@@ -216,7 +255,7 @@ def _build_ydl_opts(work_dir: str, fmt: str, quality: str, user_id: str) -> tupl
             opts["format"] = "bestvideo+bestaudio/best"
         opts["merge_output_format"] = "mp4"
 
-    return opts, cookies_source
+    return opts, cookies_source, capturing_logger
 
 
 def _find_output_file(work_dir: str, video_id: str) -> str:
@@ -233,7 +272,7 @@ def _find_output_file(work_dir: str, video_id: str) -> str:
 
 
 def _download_video(video_url: str, work_dir: str, fmt: str, quality: str, user_id: str) -> tuple[str, str]:
-    ydl_opts, cookies_source = _build_ydl_opts(work_dir, fmt, quality, user_id)
+    ydl_opts, cookies_source, capturing_logger = _build_ydl_opts(work_dir, fmt, quality, user_id)
 
     try:
         try:
@@ -257,10 +296,13 @@ def _download_video(video_url: str, work_dir: str, fmt: str, quality: str, user_
             else:
                 raise
     except yt_dlp.utils.DownloadError as exc:
-        # Tag the source of cookies (or lack thereof) actually used onto the
+        # Tag the source of cookies (or lack thereof) actually used, plus a
+        # summary of the PO token provider's own debug output, onto the
         # error, so failures are diagnosable straight from the app's
         # download-history UI without needing CloudWatch access.
-        raise yt_dlp.utils.DownloadError(f"[cookies:{cookies_source}] {exc}") from exc
+        raise yt_dlp.utils.DownloadError(
+            f"[cookies:{cookies_source}] [pot:{capturing_logger.pot_summary()}] {exc}"
+        ) from exc
 
     title = info.get("title", "video")
     final_path = _find_output_file(work_dir, info["id"])
