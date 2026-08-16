@@ -229,13 +229,24 @@ def _build_ydl_opts(work_dir: str, fmt: str, quality: str, user_id: str) -> tupl
         # them and gives the full format list.
         youtube_player_clients = ["web"]
     else:
-        # No cookies available for this user (or the fallback): the android
-        # client used to dodge the bot-check without cookies, though it's
-        # becoming less reliable too as YouTube extends token requirements.
-        youtube_player_clients = ["android", "ios", "web"]
+        # No cookies available for this user (or the fallback): web is tried
+        # first now that a PO token provider is wired up (see player_skip
+        # below), with android/ios kept as fallbacks in case the PO token
+        # provider itself is ever unavailable.
+        youtube_player_clients = ["web", "android", "ios"]
 
     opts["extractor_args"] = {
-        "youtube": {"player_client": youtube_player_clients},
+        "youtube": {
+            "player_client": youtube_player_clients,
+            # By default yt-dlp reuses the player response embedded in the
+            # plain webpage HTML for the "web" client, which skips fetching a
+            # PO token entirely (yt-dlp assumes it's unnecessary in that
+            # case) - so if YouTube's bot-check triggers at that webpage
+            # fetch itself, our PO token is never even requested, let alone
+            # used. Forcing the API-based player response path makes every
+            # client actually go through PO token fetching.
+            "player_skip": ["webpage"],
+        },
         # Points yt-dlp at the bundled bgutil-ytdlp-pot-provider "script"
         # server so it can mint a PO token for the request - this is what
         # actually gets YouTube's bot-check to pass, cookies alone (still
