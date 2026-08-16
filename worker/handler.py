@@ -102,6 +102,10 @@ def _download_video(video_url: str, work_dir: str) -> tuple[str, str]:
         "no_warnings": True,
         "restrictfilenames": True,
         "ffmpeg_location": "/usr/local/bin",
+        # The "web" client frequently triggers YouTube's "Sign in to confirm
+        # you're not a bot" check for datacenter/cloud IPs (e.g. Lambda).
+        # The android/ios/tv embedded clients aren't subject to that check.
+        "extractor_args": {"youtube": {"player_client": ["android", "ios", "web"]}},
     }
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
