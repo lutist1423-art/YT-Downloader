@@ -26,7 +26,6 @@ export class WorkerConstruct extends Construct {
       timeout: cdk.Duration.minutes(15),
       memorySize: 2048,
       ephemeralStorageSize: cdk.Size.mebibytes(4096),
-      reservedConcurrentExecutions: 2, // avoid hammering YouTube from many parallel jobs
       environment: {
         USERS_TABLE_NAME: props.usersTable.tableName,
         DOWNLOADS_TABLE_NAME: props.downloadsTable.tableName,
@@ -39,6 +38,11 @@ export class WorkerConstruct extends Construct {
       new eventsources.SqsEventSource(props.downloadQueue, {
         batchSize: 1,
         reportBatchItemFailures: true,
+        // Caps concurrent invocations from this queue without reserving
+        // account-wide Lambda concurrency (avoids hammering YouTube from
+        // many parallel jobs, and works even on accounts with a small
+        // total concurrency quota).
+        maxConcurrency: 2,
       })
     );
 
