@@ -21,12 +21,17 @@ ENV PATH="/usr/local/bin:${PATH}"
 # extra always-on AWS infrastructure.
 #
 # Installed from the official upstream tarball rather than a distro package
-# repo (e.g. NodeSource's dnf repo): the provider requires Node >= 20 and
+# repo (e.g. NodeSource's dnf repo): the provider itself only requires Node
+# >= 20, but its dependency tree (html-encoding-sniffer -> @exodus/bytes,
+# an ESM-only package required via CommonJS require()) needs Node's stable
+# require(esm) support, only available from Node 20.19 / 22.12 / 24.0
+# onwards - Node 20.18.1 failed at build time with ERR_REQUIRE_ESM. Node 20
+# has also reached end-of-life, so we standardize on Node 22 LTS.
 # Amazon Linux 2023's own package repos / NodeSource's AL2023 support are not
 # reliable enough to trust silently - if this ever pulls a too-old Node, the
 # smoke test a few lines down will fail the build loudly instead of the
 # provider silently being unavailable at runtime.
-ARG NODE_VERSION=20.18.1
+ARG NODE_VERSION=22.12.0
 RUN dnf install -y git tar xz && \
     curl -fsSL -o /tmp/node.tar.xz "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-x64.tar.xz" && \
     mkdir -p /opt/nodejs && \
@@ -37,7 +42,7 @@ RUN dnf install -y git tar xz && \
 ENV PATH="/opt/nodejs/bin:${PATH}"
 
 RUN node --version && \
-    node -e "if (Number(process.versions.node.split('.')[0]) < 20) { console.error('Node >= 20 required, got ' + process.versions.node); process.exit(1); }"
+    node -e "if (Number(process.versions.node.split('.')[0]) < 22) { console.error('Node >= 22 required (require(esm) support), got ' + process.versions.node); process.exit(1); }"
 
 # The final `test` here is a build-time smoke test: it fails the image build
 # loudly (with logs) rather than silently deploying a Lambda where the PO
