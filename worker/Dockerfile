@@ -3,7 +3,8 @@ FROM public.ecr.aws/lambda/python:3.12
 # ffmpeg is required by yt-dlp to merge separate video/audio streams and is
 # not available in the base Lambda image, so we pull a static build.
 RUN dnf install -y tar xz && dnf clean all && \
-    curl -L -o /tmp/ffmpeg.tar.xz https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz && \
+    curl -fL --retry 5 --retry-delay 5 --retry-all-errors \
+      -o /tmp/ffmpeg.tar.xz https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz && \
     mkdir -p /tmp/ffmpeg-extract && \
     tar -xJf /tmp/ffmpeg.tar.xz -C /tmp/ffmpeg-extract --strip-components=1 && \
     cp /tmp/ffmpeg-extract/ffmpeg /tmp/ffmpeg-extract/ffprobe /usr/local/bin/ && \
