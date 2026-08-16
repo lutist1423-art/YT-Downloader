@@ -15,6 +15,7 @@ export interface AppStackProps extends cdk.StackProps {
   certificate: acm.ICertificate;
   githubRepo: string;
   githubBranch: string;
+  githubOidcProviderExists: boolean;
 }
 
 export class AppStack extends cdk.Stack {
@@ -66,6 +67,7 @@ export class AppStack extends cdk.Stack {
       siteBucket: frontend.siteBucket,
       distribution: frontend.distribution,
       deployRegions: [this.region, "us-east-1"],
+      githubOidcProviderExists: props.githubOidcProviderExists,
     });
 
     // Stack-scoped outputs (stable, predictable names - safe to reference

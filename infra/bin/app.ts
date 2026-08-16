@@ -11,6 +11,7 @@ const parentHostedZoneDomain = app.node.tryGetContext("parentHostedZoneDomain") 
 const githubRepo = app.node.tryGetContext("githubRepo") as string;
 const githubBranch = app.node.tryGetContext("githubBranch") as string;
 const awsRegion = (app.node.tryGetContext("awsRegion") as string) ?? "eu-central-1";
+const githubOidcProviderExists = (app.node.tryGetContext("githubOidcProviderExists") as boolean) ?? false;
 
 const account = process.env.CDK_DEFAULT_ACCOUNT;
 
@@ -31,4 +32,5 @@ new AppStack(app, "YtDownloaderAppStack", {
   certificate: certStack.certificate,
   githubRepo,
   githubBranch,
+  githubOidcProviderExists,
 });

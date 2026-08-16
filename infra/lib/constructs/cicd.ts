@@ -11,6 +11,14 @@ export interface CicdConstructProps {
   distribution: cloudfront.IDistribution;
   cdkQualifier?: string; // defaults to CDK's standard "hnb659fds"
   deployRegions: string[]; // regions the infra deploy role must be able to assume CDK bootstrap roles in
+  /**
+   * An AWS account can only have ONE IAM OIDC provider per issuer URL. If
+   * this AWS account already has a `token.actions.githubusercontent.com`
+   * provider registered (e.g. from another project's GitHub Actions OIDC
+   * setup), set this to true to import/reuse it instead of trying to create
+   * a duplicate (which fails with EntityAlreadyExistsException).
+   */
+  githubOidcProviderExists: boolean;
 }
 
 /**
@@ -35,10 +43,16 @@ export class CicdConstruct extends Construct {
     const qualifier = props.cdkQualifier ?? "hnb659fds";
     const account = cdk.Stack.of(this).account;
 
-    const provider = new iam.OpenIdConnectProvider(this, "GithubOidcProvider", {
-      url: "https://token.actions.githubusercontent.com",
-      clientIds: ["sts.amazonaws.com"],
-    });
+    const provider = props.githubOidcProviderExists
+      ? iam.OpenIdConnectProvider.fromOpenIdConnectProviderArn(
+          this,
+          "GithubOidcProvider",
+          `arn:aws:iam::${account}:oidc-provider/token.actions.githubusercontent.com`
+        )
+      : new iam.OpenIdConnectProvider(this, "GithubOidcProvider", {
+          url: "https://token.actions.githubusercontent.com",
+          clientIds: ["sts.amazonaws.com"],
+        });
 
     const githubPrincipal = (branch: string) =>
       new iam.WebIdentityPrincipal(provider.openIdConnectProviderArn, {
