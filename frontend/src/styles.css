@@ -473,6 +473,17 @@ a {
   background: var(--color-bg);
 }
 
+.admin-user-cookies {
+  margin-bottom: 1.25rem;
+  padding-bottom: 1.25rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.table__expanded h3 {
+  font-size: 0.95rem;
+  margin: 0 0 0.5rem;
+}
+
 .table--nested {
   font-size: 0.85rem;
 }

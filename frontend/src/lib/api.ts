@@ -145,3 +145,27 @@ export function getUserDownloads(userId: string): Promise<DownloadsListResponse>
     `/admin/users/${encodeURIComponent(userId)}/downloads`
   );
 }
+
+export function adminResetUserPassword(userId: string): Promise<{ message: string }> {
+  return request<{ message: string }>(
+    "admin",
+    `/admin/users/${encodeURIComponent(userId)}/reset-password`,
+    { method: "POST" }
+  );
+}
+
+export function adminSetUserCookies(userId: string, cookies: string): Promise<{ hasCookies: boolean }> {
+  return request<{ hasCookies: boolean }>(
+    "admin",
+    `/admin/users/${encodeURIComponent(userId)}/cookies`,
+    { method: "POST", body: { cookies } }
+  );
+}
+
+export function adminDeleteUserCookies(userId: string): Promise<{ hasCookies: boolean }> {
+  return request<{ hasCookies: boolean }>(
+    "admin",
+    `/admin/users/${encodeURIComponent(userId)}/cookies`,
+    { method: "DELETE" }
+  );
+}
