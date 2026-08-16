@@ -10,6 +10,7 @@ import * as s3 from "aws-cdk-lib/aws-s3";
 import * as sqs from "aws-cdk-lib/aws-sqs";
 import * as cognito from "aws-cdk-lib/aws-cognito";
 import * as logs from "aws-cdk-lib/aws-logs";
+import * as iam from "aws-cdk-lib/aws-iam";
 import * as path from "path";
 
 export interface ApiConstructProps {
@@ -91,6 +92,23 @@ export class ApiConstruct extends Construct {
 
     const adminListUserDownloadsFn = makeFn("AdminListUserDownloadsFn", "adminListUserDownloads.ts");
     props.downloadsTable.grantReadData(adminListUserDownloadsFn);
+
+    const adminResetUserPasswordFn = makeFn("AdminResetUserPasswordFn", "adminResetUserPassword.ts");
+    adminResetUserPasswordFn.addEnvironment("USER_POOL_ID", props.userPool.userPoolId);
+    adminResetUserPasswordFn.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ["cognito-idp:AdminResetUserPassword"],
+        resources: [props.userPool.userPoolArn],
+      })
+    );
+
+    const adminSetUserCookiesFn = makeFn("AdminSetUserCookiesFn", "adminSetUserCookies.ts");
+    props.userCookiesBucket.grantPut(adminSetUserCookiesFn);
+    props.usersTable.grantReadWriteData(adminSetUserCookiesFn);
+
+    const adminDeleteUserCookiesFn = makeFn("AdminDeleteUserCookiesFn", "adminDeleteUserCookies.ts");
+    props.userCookiesBucket.grantDelete(adminDeleteUserCookiesFn);
+    props.usersTable.grantReadWriteData(adminDeleteUserCookiesFn);
 
     // ---- HTTP API ----
     this.httpApi = new apigwv2.HttpApi(this, "HttpApi", {
@@ -174,6 +192,24 @@ export class ApiConstruct extends Construct {
       path: "/admin/users/{userId}/downloads",
       methods: [apigwv2.HttpMethod.GET],
       integration: new integrations.HttpLambdaIntegration("AdminListUserDownloadsInt", adminListUserDownloadsFn),
+      authorizer: adminAuthorizer,
+    });
+    this.httpApi.addRoutes({
+      path: "/admin/users/{userId}/reset-password",
+      methods: [apigwv2.HttpMethod.POST],
+      integration: new integrations.HttpLambdaIntegration("AdminResetUserPasswordInt", adminResetUserPasswordFn),
+      authorizer: adminAuthorizer,
+    });
+    this.httpApi.addRoutes({
+      path: "/admin/users/{userId}/cookies",
+      methods: [apigwv2.HttpMethod.POST],
+      integration: new integrations.HttpLambdaIntegration("AdminSetUserCookiesInt", adminSetUserCookiesFn),
+      authorizer: adminAuthorizer,
+    });
+    this.httpApi.addRoutes({
+      path: "/admin/users/{userId}/cookies",
+      methods: [apigwv2.HttpMethod.DELETE],
+      integration: new integrations.HttpLambdaIntegration("AdminDeleteUserCookiesInt", adminDeleteUserCookiesFn),
       authorizer: adminAuthorizer,
     });
   }

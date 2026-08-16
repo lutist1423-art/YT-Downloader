@@ -50,6 +50,7 @@ export interface AdminUser {
   credits: number;
   creditsUsed: number;
   createdAt: string;
+  hasCookies?: boolean;
 }
 
 export interface AdminUsersListResponse {

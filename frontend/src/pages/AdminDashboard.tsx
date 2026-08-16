@@ -1,7 +1,17 @@
-import { Fragment, useEffect, useState } from "react";
+import { ChangeEvent, Fragment, useEffect, useState } from "react";
 import AdminHeader from "../components/AdminHeader";
-import { ApiError, getUserDownloads, listAdminUsers, updateUserCredits } from "../lib/api";
+import {
+  adminDeleteUserCookies,
+  adminResetUserPassword,
+  adminSetUserCookies,
+  ApiError,
+  getUserDownloads,
+  listAdminUsers,
+  updateUserCredits,
+} from "../lib/api";
 import type { AdminUser, Download } from "../lib/types";
+
+const MAX_COOKIES_BYTES = 100 * 1024;
 
 export default function AdminDashboard(): JSX.Element {
   const [users, setUsers] = useState<AdminUser[]>([]);
@@ -18,6 +28,14 @@ export default function AdminDashboard(): JSX.Element {
   const [expandedDownloads, setExpandedDownloads] = useState<Download[] | null>(null);
   const [expandedLoading, setExpandedLoading] = useState(false);
   const [expandedError, setExpandedError] = useState<string | null>(null);
+
+  const [resetBusyUserId, setResetBusyUserId] = useState<string | null>(null);
+  const [resetMessage, setResetMessage] = useState<{ userId: string; text: string } | null>(null);
+
+  const [cookiesBusyUserId, setCookiesBusyUserId] = useState<string | null>(null);
+  const [cookiesText, setCookiesText] = useState("");
+  const [cookiesFileName, setCookiesFileName] = useState<string | null>(null);
+  const [cookiesMessage, setCookiesMessage] = useState<{ userId: string; text: string } | null>(null);
 
   async function loadInitial() {
     setLoading(true);
@@ -97,6 +115,9 @@ export default function AdminDashboard(): JSX.Element {
     setExpandedDownloads(null);
     setExpandedError(null);
     setExpandedLoading(true);
+    setCookiesText("");
+    setCookiesFileName(null);
+    setCookiesMessage(null);
     try {
       const res = await getUserDownloads(userId);
       setExpandedDownloads(res.items);
@@ -104,6 +125,70 @@ export default function AdminDashboard(): JSX.Element {
       setExpandedError(err instanceof Error ? err.message : "Failed to load downloads.");
     } finally {
       setExpandedLoading(false);
+    }
+  }
+
+  async function handleResetPassword(userId: string) {
+    if (!window.confirm("Reset this user's password? They'll need to use 'Forgot password' to set a new one.")) {
+      return;
+    }
+    setResetBusyUserId(userId);
+    setResetMessage(null);
+    try {
+      await adminResetUserPassword(userId);
+      setResetMessage({ userId, text: "Password reset. Tell the user to use 'Forgot password' on the login page." });
+    } catch (err) {
+      setResetMessage({ userId, text: err instanceof Error ? err.message : "Failed to reset password." });
+    } finally {
+      setResetBusyUserId(null);
+    }
+  }
+
+  function handleCookiesFile(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setCookiesMessage(null);
+    if (file.size > MAX_COOKIES_BYTES) {
+      setCookiesMessage({ userId: file.name, text: "That file is too large (max 100KB)." });
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setCookiesText(String(reader.result ?? ""));
+      setCookiesFileName(file.name);
+    };
+    reader.readAsText(file);
+  }
+
+  async function handleCookiesSave(userId: string) {
+    if (!cookiesText.trim()) return;
+    setCookiesBusyUserId(userId);
+    setCookiesMessage(null);
+    try {
+      await adminSetUserCookies(userId, cookiesText);
+      setUsers((prev) => prev.map((u) => (u.userId === userId ? { ...u, hasCookies: true } : u)));
+      setCookiesText("");
+      setCookiesFileName(null);
+      setCookiesMessage({ userId, text: "Cookies saved for this user." });
+    } catch (err) {
+      setCookiesMessage({ userId, text: err instanceof Error ? err.message : "Failed to save cookies." });
+    } finally {
+      setCookiesBusyUserId(null);
+    }
+  }
+
+  async function handleCookiesRemove(userId: string) {
+    setCookiesBusyUserId(userId);
+    setCookiesMessage(null);
+    try {
+      await adminDeleteUserCookies(userId);
+      setUsers((prev) => prev.map((u) => (u.userId === userId ? { ...u, hasCookies: false } : u)));
+      setCookiesMessage({ userId, text: "Cookies removed for this user." });
+    } catch (err) {
+      setCookiesMessage({ userId, text: err instanceof Error ? err.message : "Failed to remove cookies." });
+    } finally {
+      setCookiesBusyUserId(null);
     }
   }
 
@@ -176,15 +261,74 @@ export default function AdminDashboard(): JSX.Element {
                                 className="btn btn--small btn--ghost"
                                 onClick={() => toggleExpand(user.userId)}
                               >
-                                {expandedUserId === user.userId ? "Hide downloads" : "Downloads"}
+                                {expandedUserId === user.userId ? "Hide details" : "Details"}
+                              </button>
+                              <button
+                                className="btn btn--small btn--ghost"
+                                onClick={() => handleResetPassword(user.userId)}
+                                disabled={resetBusyUserId === user.userId}
+                              >
+                                {resetBusyUserId === user.userId ? "Resetting..." : "Reset password"}
                               </button>
                             </>
                           )}
                         </td>
                       </tr>
+                      {resetMessage?.userId === user.userId && (
+                        <tr>
+                          <td colSpan={5} className="table__expanded">
+                            <p className="hint">{resetMessage.text}</p>
+                          </td>
+                        </tr>
+                      )}
                       {expandedUserId === user.userId && (
                         <tr>
                           <td colSpan={5} className="table__expanded">
+                            <div className="admin-user-cookies">
+                              <h3>YouTube cookies</h3>
+                              <p className="hint">
+                                Status:{" "}
+                                {user.hasCookies ? (
+                                  <strong>uploaded</strong>
+                                ) : (
+                                  <span>none uploaded</span>
+                                )}
+                              </p>
+                              <div className="cookies-form">
+                                <input
+                                  type="file"
+                                  accept=".txt"
+                                  onChange={handleCookiesFile}
+                                  disabled={cookiesBusyUserId === user.userId}
+                                />
+                                {cookiesFileName && <span className="hint">Selected: {cookiesFileName}</span>}
+                                <div className="cookies-form__actions">
+                                  <button
+                                    className="btn btn--small"
+                                    type="button"
+                                    disabled={cookiesBusyUserId === user.userId || !cookiesText.trim()}
+                                    onClick={() => handleCookiesSave(user.userId)}
+                                  >
+                                    {cookiesBusyUserId === user.userId ? "Saving..." : "Save cookies"}
+                                  </button>
+                                  {user.hasCookies && (
+                                    <button
+                                      className="btn btn--small btn--danger"
+                                      type="button"
+                                      disabled={cookiesBusyUserId === user.userId}
+                                      onClick={() => handleCookiesRemove(user.userId)}
+                                    >
+                                      Remove cookies
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                              {cookiesMessage?.userId === user.userId && (
+                                <p className="hint">{cookiesMessage.text}</p>
+                              )}
+                            </div>
+
+                            <h3>Download history</h3>
                             {expandedLoading && <p>Loading downloads...</p>}
                             {expandedError && (
                               <div className="alert alert--error">{expandedError}</div>
