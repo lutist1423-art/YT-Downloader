@@ -144,11 +144,19 @@ def _fetch_fallback_cookies_file() -> str | None:
     return FALLBACK_COOKIES_FILE_PATH
 
 
-def _resolve_cookies_file(user_id: str) -> str | None:
-    return _fetch_user_cookies_file(user_id) or _fetch_fallback_cookies_file()
+def _resolve_cookies_file(user_id: str) -> tuple[str | None, str]:
+    """Returns (path, source) where source is "user", "fallback", or "none" - surfaced
+    in error messages so failures are diagnosable from the app UI alone."""
+    user_cookies = _fetch_user_cookies_file(user_id)
+    if user_cookies:
+        return user_cookies, "user"
+    fallback_cookies = _fetch_fallback_cookies_file()
+    if fallback_cookies:
+        return fallback_cookies, "fallback"
+    return None, "none"
 
 
-def _build_ydl_opts(work_dir: str, fmt: str, quality: str, user_id: str) -> dict:
+def _build_ydl_opts(work_dir: str, fmt: str, quality: str, user_id: str) -> tuple[dict, str]:
     output_template = os.path.join(work_dir, "%(id)s.%(ext)s")
 
     opts = {
@@ -161,7 +169,7 @@ def _build_ydl_opts(work_dir: str, fmt: str, quality: str, user_id: str) -> dict
         "ffmpeg_location": "/usr/local/bin",
     }
 
-    cookies_file = _resolve_cookies_file(user_id)
+    cookies_file, cookies_source = _resolve_cookies_file(user_id)
     if cookies_file:
         opts["cookiefile"] = cookies_file
         # The android/ios embedded clients ignore browser cookies entirely
@@ -194,7 +202,7 @@ def _build_ydl_opts(work_dir: str, fmt: str, quality: str, user_id: str) -> dict
             opts["format"] = "bestvideo+bestaudio/best"
         opts["merge_output_format"] = "mp4"
 
-    return opts
+    return opts, cookies_source
 
 
 def _find_output_file(work_dir: str, video_id: str) -> str:
@@ -211,28 +219,34 @@ def _find_output_file(work_dir: str, video_id: str) -> str:
 
 
 def _download_video(video_url: str, work_dir: str, fmt: str, quality: str, user_id: str) -> tuple[str, str]:
-    ydl_opts = _build_ydl_opts(work_dir, fmt, quality, user_id)
+    ydl_opts, cookies_source = _build_ydl_opts(work_dir, fmt, quality, user_id)
 
     try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(video_url, download=True)
-    except yt_dlp.utils.DownloadError as exc:
-        # The requested height/codec combination isn't always available for
-        # every video (different YouTube player clients expose different
-        # format lists). Retry once with the most permissive selector
-        # possible - whatever single format yt-dlp considers "best" - rather
-        # than failing outright and burning the user's credit.
-        if fmt != "mp3" and "Requested format is not available" in str(exc):
-            logger.warning("Primary format selector failed for %s, retrying with format=best", video_url)
-            fallback_opts = dict(ydl_opts)
-            fallback_opts["format"] = "best"
-            fallback_opts["postprocessors"] = [
-                {"key": "FFmpegVideoConvertor", "preferedformat": "mp4"}
-            ]
-            with yt_dlp.YoutubeDL(fallback_opts) as ydl:
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(video_url, download=True)
-        else:
-            raise
+        except yt_dlp.utils.DownloadError as exc:
+            # The requested height/codec combination isn't always available
+            # for every video (different YouTube player clients expose
+            # different format lists). Retry once with the most permissive
+            # selector possible - whatever single format yt-dlp considers
+            # "best" - rather than failing outright and burning the credit.
+            if fmt != "mp3" and "Requested format is not available" in str(exc):
+                logger.warning("Primary format selector failed for %s, retrying with format=best", video_url)
+                fallback_opts = dict(ydl_opts)
+                fallback_opts["format"] = "best"
+                fallback_opts["postprocessors"] = [
+                    {"key": "FFmpegVideoConvertor", "preferedformat": "mp4"}
+                ]
+                with yt_dlp.YoutubeDL(fallback_opts) as ydl:
+                    info = ydl.extract_info(video_url, download=True)
+            else:
+                raise
+    except yt_dlp.utils.DownloadError as exc:
+        # Tag the source of cookies (or lack thereof) actually used onto the
+        # error, so failures are diagnosable straight from the app's
+        # download-history UI without needing CloudWatch access.
+        raise yt_dlp.utils.DownloadError(f"[cookies:{cookies_source}] {exc}") from exc
 
     title = info.get("title", "video")
     final_path = _find_output_file(work_dir, info["id"])
