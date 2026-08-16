@@ -16,8 +16,10 @@ export class DataConstruct extends Construct {
     super(scope, id);
 
     // ---- Users table ----
+    // No explicit tableName: RETAIN + a fixed physical name means a rolled-
+    // back/deleted stack leaves an orphaned table that then collides by
+    // name on the next deploy. Let CloudFormation generate a unique name.
     this.usersTable = new dynamodb.Table(this, "UsersTable", {
-      tableName: "yt-downloader-users",
       partitionKey: { name: "userId", type: dynamodb.AttributeType.STRING },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       pointInTimeRecovery: true,
@@ -31,7 +33,6 @@ export class DataConstruct extends Construct {
 
     // ---- Downloads table ----
     this.downloadsTable = new dynamodb.Table(this, "DownloadsTable", {
-      tableName: "yt-downloader-downloads",
       partitionKey: { name: "downloadId", type: dynamodb.AttributeType.STRING },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       pointInTimeRecovery: true,
