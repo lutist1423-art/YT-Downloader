@@ -12,6 +12,24 @@ RUN dnf install -y tar xz && dnf clean all && \
 
 ENV PATH="/usr/local/bin:${PATH}"
 
+# Node.js + the bgutil-ytdlp-pot-provider "script" mode generate a YouTube PO
+# (Proof-of-Origin) token per request. Without one, YouTube increasingly
+# blocks yt-dlp as bot traffic even with valid cookies. Script mode shells
+# out to a plain Node process per download instead of running an always-on
+# server, so bundling Node + the provider into this image avoids running any
+# extra always-on AWS infrastructure.
+RUN dnf install -y git && \
+    curl -fsSL https://rpm.nodesource.com/setup_20.x | bash - && \
+    dnf install -y nodejs && \
+    dnf clean all
+
+RUN git clone --branch 1.3.1 --depth 1 https://github.com/Brainicism/bgutil-ytdlp-pot-provider.git /opt/bgutil-ytdlp-pot-provider && \
+    cd /opt/bgutil-ytdlp-pot-provider/server && \
+    npm ci && \
+    npx tsc && \
+    npm prune --omit=dev && \
+    rm -rf /opt/bgutil-ytdlp-pot-provider/.git
+
 COPY requirements.txt ${LAMBDA_TASK_ROOT}
 RUN pip install --no-cache-dir -r requirements.txt
 

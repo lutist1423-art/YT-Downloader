@@ -39,6 +39,10 @@ users_table = dynamodb.Table(USERS_TABLE)
 
 MAX_FILESIZE_BYTES = 2 * 1024 * 1024 * 1024  # 2GB safety cap
 FALLBACK_COOKIES_FILE_PATH = "/tmp/fallback_cookies.txt"
+# Built into the worker image (see Dockerfile) - the bgutil-ytdlp-pot-provider
+# "script" mode server, used to mint YouTube PO tokens per request so that
+# requests aren't flagged as bot traffic even without/beyond cookies alone.
+BGUTIL_POT_SERVER_HOME = "/opt/bgutil-ytdlp-pot-provider/server"
 
 QUALITY_HEIGHT_CAP = {"1080p": 1080, "720p": 720, "480p": 480, "360p": 360}
 CONTENT_TYPES = {"mp3": "audio/mpeg", "mp4": "video/mp4"}
@@ -177,12 +181,22 @@ def _build_ydl_opts(work_dir: str, fmt: str, quality: str, user_id: str) -> tupl
         # down separately) and increasingly return no formats at all without
         # one. With real cookies available, "web" is what actually uses
         # them and gives the full format list.
-        opts["extractor_args"] = {"youtube": {"player_client": ["web"]}}
+        youtube_player_clients = ["web"]
     else:
         # No cookies available for this user (or the fallback): the android
         # client used to dodge the bot-check without cookies, though it's
         # becoming less reliable too as YouTube extends token requirements.
-        opts["extractor_args"] = {"youtube": {"player_client": ["android", "ios", "web"]}}
+        youtube_player_clients = ["android", "ios", "web"]
+
+    opts["extractor_args"] = {
+        "youtube": {"player_client": youtube_player_clients},
+        # Points yt-dlp at the bundled bgutil-ytdlp-pot-provider "script"
+        # server so it can mint a PO token for the request - this is what
+        # actually gets YouTube's bot-check to pass, cookies alone (still
+        # set above, e.g. for age-restricted content) are no longer
+        # sufficient on their own.
+        "youtubepot-bgutilscript": {"server_home": [BGUTIL_POT_SERVER_HOME]},
+    }
 
     if fmt == "mp3":
         opts["format"] = "bestaudio/best"
