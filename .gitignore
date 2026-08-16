@@ -2,6 +2,7 @@ node_modules/
 dist/
 build/
 cdk.out/
+cdk.context.json
 *.js.map
 .env
 .env.local
