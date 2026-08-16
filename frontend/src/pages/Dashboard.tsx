@@ -287,6 +287,29 @@ export default function Dashboard(): JSX.Element {
             as long as the cookies remain valid. We store the file privately and it is never
             served back through the app; you can remove it at any time.
           </p>
+          <details className="cookies-howto">
+            <summary>How do I get a cookies.txt file?</summary>
+            <ol>
+              <li>
+                Install a browser extension that exports cookies in <strong>Netscape format</strong>{" "}
+                (a plain text, tab-separated file - not JSON): <strong>"Get cookies.txt LOCALLY"</strong>{" "}
+                for Chrome/Edge/Brave, or <strong>"cookies.txt"</strong> for Firefox.
+              </li>
+              <li>
+                In a private/incognito window (or a separate browser profile), sign in to a{" "}
+                <strong>secondary/throwaway</strong> Google account - not your main one.
+              </li>
+              <li>
+                Go to <code>youtube.com</code> and confirm you're signed in (avatar icon top-right).
+              </li>
+              <li>Click the extension icon, make sure it's exporting for the current site (youtube.com), and export/download the file.</li>
+              <li>Come back here, pick that file below, and click "Save cookies".</li>
+            </ol>
+            <p>
+              Cookies expire after a while (weeks to months). If downloads that used to work start
+              failing with a "sign in" error again, just repeat these steps and re-upload.
+            </p>
+          </details>
           <p className="hint">
             Current status:{" "}
             {me?.hasCookies ? (

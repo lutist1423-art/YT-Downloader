@@ -180,24 +180,61 @@ YouTube increasingly blocks download requests from datacenter/cloud IPs
 (including Lambda) with a "Sign in to confirm you're not a bot" error unless
 yt-dlp presents cookies from a real, signed-in browser session. Two layers:
 
-- **Per-user (self-service):** each user can upload their own
+- **Per-user (self-service, recommended):** each user uploads their own
   `cookies.txt` on their dashboard (`YouTube cookies` section) - stored
   privately per user in S3, used only for their own downloads, never
-  readable back through the API. This is the primary mechanism and needs
-  no operator action.
+  readable back through the API. Needs no operator action; see the
+  export steps below.
 - **Site-wide fallback (optional):** for users who haven't uploaded their
   own, the worker falls back to one operator-provided cookie set stored in
-  Secrets Manager (`CookiesSecretNameOut` in the stack outputs). To set it:
-  1. In a browser, sign in to a **secondary/throwaway** Google account (not
-     your main one - see the security note below) and export cookies via
-     an extension like "Get cookies.txt LOCALLY".
-  2. `aws secretsmanager put-secret-value --secret-id <CookiesSecretNameOut> --secret-string file://cookies.txt --region eu-central-1`
+  Secrets Manager (`CookiesSecretNameOut` in the stack outputs). Export a
+  cookies.txt the same way (steps below) using a secondary account, then:
+  `aws secretsmanager put-secret-value --secret-id <CookiesSecretNameOut> --secret-string file://cookies.txt --region eu-central-1`
 
 Either way, the cookies belong to whichever Google account exported them -
 treat them like a password. Anyone with access to read them could act as
 that YouTube session for as long as the cookies stay valid, which is why
 the app never exposes uploaded cookies back through any API response and
-strongly suggests a secondary account rather than a personal one.
+strongly suggests a secondary/throwaway account rather than a personal one.
+
+#### How to export `cookies.txt`
+
+You need a browser extension that exports cookies in **Netscape format**
+(the plain-text, tab-separated format yt-dlp expects - not a JSON export).
+
+**Chrome / Edge / Brave:**
+1. Install the extension **"Get cookies.txt LOCALLY"** from the Chrome Web
+   Store (search that exact name - prefer the one with the most installs;
+   avoid extensions that ask for broad unrelated permissions).
+2. Open a private/incognito-style browsing profile (or a separate browser
+   profile) and sign in to the **secondary/throwaway** Google account you
+   want to use - not your main account.
+3. Go to `https://www.youtube.com` and make sure you're signed in (avatar
+   icon top-right).
+4. Click the extension icon in the toolbar.
+5. Make sure the current site shown is `youtube.com`, then click
+   **"Export"** (or "Copy"/"Export As" depending on the extension version)
+   to download a `cookies.txt` file.
+
+**Firefox:**
+1. Install the extension **"cookies.txt"** by Lennon Hill (or
+   "Export Cookies" - search the Firefox Add-ons store) which exports in
+   the same Netscape format.
+2. Repeat steps 2-3 above (private window, sign in to the secondary
+   account, open youtube.com signed in).
+3. Click the extension icon and export/download the `cookies.txt` file for
+   the current site.
+
+**Then:**
+- On the app's dashboard, under "YouTube cookies", click the file picker,
+  select the `cookies.txt` you just downloaded, and click **"Save
+  cookies"**.
+- Cookies expire eventually (typically weeks to months depending on the
+  account and how the extension set expiry) - if downloads that used to
+  work start failing with the same "sign in" error again, just repeat the
+  export and re-upload.
+- Delete the downloaded `cookies.txt` file from your computer afterwards
+  (or keep it somewhere private) - it's as sensitive as a saved login.
 
 ## Local development
 
