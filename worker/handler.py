@@ -43,6 +43,13 @@ FALLBACK_COOKIES_FILE_PATH = "/tmp/fallback_cookies.txt"
 # "script" mode server, used to mint YouTube PO tokens per request so that
 # requests aren't flagged as bot traffic even without/beyond cookies alone.
 BGUTIL_POT_SERVER_HOME = "/opt/bgutil-ytdlp-pot-provider/server"
+# AWS Lambda resets PATH to its own fixed default for the execution
+# environment (roughly /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:
+# /sbin:/bin:/opt/bin), ignoring whatever PATH the container image's Dockerfile
+# set via ENV - so the provider's "is node on PATH?" check fails even though
+# node is right there in the image. Pointing yt-dlp at the exact binary
+# sidesteps PATH entirely instead of relying on it.
+NODE_BINARY_PATH = "/opt/nodejs/bin/node"
 
 QUALITY_HEIGHT_CAP = {"1080p": 1080, "720p": 720, "480p": 480, "360p": 360}
 CONTENT_TYPES = {"mp3": "audio/mpeg", "mp4": "video/mp4"}
@@ -236,6 +243,9 @@ def _build_ydl_opts(work_dir: str, fmt: str, quality: str, user_id: str) -> tupl
         # sufficient on their own.
         "youtubepot-bgutilscript": {"server_home": [BGUTIL_POT_SERVER_HOME]},
     }
+    # See NODE_BINARY_PATH comment above: bypasses PATH lookup for the "node"
+    # JS runtime entirely, since Lambda's own PATH doesn't include it.
+    opts["js_runtimes"] = {"node": {"path": NODE_BINARY_PATH}}
 
     if fmt == "mp3":
         opts["format"] = "bestaudio/best"
