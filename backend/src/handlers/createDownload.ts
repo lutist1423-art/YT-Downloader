@@ -7,17 +7,20 @@ import { ddb, USERS_TABLE, DOWNLOADS_TABLE } from "../lib/dynamo";
 import { sqs, DOWNLOAD_QUEUE_URL } from "../lib/sqs";
 import { checkRateLimit } from "../lib/rateLimit";
 import { getClaims, json, errorResponse } from "../lib/http";
-import { DownloadRecord, DownloadQueueMessage } from "../lib/types";
+import { DownloadRecord, DownloadQueueMessage, DownloadFormat, DownloadQuality } from "../lib/types";
 
 const YOUTUBE_URL_PATTERN =
   /^https?:\/\/(www\.|m\.)?(youtube\.com\/(watch\?v=|shorts\/)|youtu\.be\/)[\w-]{6,}/i;
+
+const VALID_FORMATS: DownloadFormat[] = ["mp4", "mp3"];
+const VALID_QUALITIES: DownloadQuality[] = ["best", "1080p", "720p", "480p", "360p"];
 
 export async function handler(
   event: APIGatewayProxyEventV2WithJWTAuthorizer
 ): Promise<APIGatewayProxyResultV2> {
   const { sub } = getClaims(event);
 
-  let body: { videoUrl?: string };
+  let body: { videoUrl?: string; format?: string; quality?: string };
   try {
     body = JSON.parse(event.body ?? "{}");
   } catch {
@@ -27,6 +30,16 @@ export async function handler(
   const videoUrl = body.videoUrl?.trim();
   if (!videoUrl || !YOUTUBE_URL_PATTERN.test(videoUrl)) {
     return errorResponse(400, "INVALID_URL", "Please provide a valid YouTube video URL.");
+  }
+
+  const format = (body.format ?? "mp4") as DownloadFormat;
+  if (!VALID_FORMATS.includes(format)) {
+    return errorResponse(400, "INVALID_FORMAT", `format must be one of: ${VALID_FORMATS.join(", ")}`);
+  }
+
+  const quality = (body.quality ?? "best") as DownloadQuality;
+  if (!VALID_QUALITIES.includes(quality)) {
+    return errorResponse(400, "INVALID_QUALITY", `quality must be one of: ${VALID_QUALITIES.join(", ")}`);
   }
 
   const allowed = await checkRateLimit(sub);
@@ -60,6 +73,8 @@ export async function handler(
     downloadId,
     userId: sub,
     videoUrl,
+    format,
+    quality,
     status: "QUEUED",
     requestedAt,
   };
@@ -67,7 +82,7 @@ export async function handler(
   try {
     await ddb.send(new PutCommand({ TableName: DOWNLOADS_TABLE, Item: record }));
 
-    const message: DownloadQueueMessage = { downloadId, userId: sub, videoUrl };
+    const message: DownloadQueueMessage = { downloadId, userId: sub, videoUrl, format, quality };
     await sqs.send(
       new SendMessageCommand({
         QueueUrl: DOWNLOAD_QUEUE_URL,

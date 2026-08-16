@@ -9,6 +9,8 @@ import type {
   AdminUser,
   Download,
   DownloadDetail,
+  DownloadFormat,
+  DownloadQuality,
   DownloadsListResponse,
   Me,
   ApiErrorBody,
@@ -103,12 +105,24 @@ export function listDownloads(): Promise<DownloadsListResponse> {
   return request<DownloadsListResponse>("user", "/downloads");
 }
 
-export function createDownload(videoUrl: string): Promise<Download> {
-  return request<Download>("user", "/downloads", { method: "POST", body: { videoUrl } });
+export function createDownload(
+  videoUrl: string,
+  format: DownloadFormat,
+  quality: DownloadQuality
+): Promise<Download> {
+  return request<Download>("user", "/downloads", { method: "POST", body: { videoUrl, format, quality } });
 }
 
 export function getDownload(downloadId: string): Promise<DownloadDetail> {
   return request<DownloadDetail>("user", `/downloads/${encodeURIComponent(downloadId)}`);
+}
+
+export function uploadCookies(cookies: string): Promise<{ hasCookies: boolean }> {
+  return request<{ hasCookies: boolean }>("user", "/me/cookies", { method: "POST", body: { cookies } });
+}
+
+export function deleteCookies(): Promise<{ hasCookies: boolean }> {
+  return request<{ hasCookies: boolean }>("user", "/me/cookies", { method: "DELETE" });
 }
 
 // ---------- Admin-pool-authenticated endpoints ----------

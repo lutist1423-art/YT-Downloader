@@ -26,15 +26,22 @@ logger.setLevel(logging.INFO)
 
 dynamodb = boto3.resource("dynamodb")
 s3 = boto3.client("s3")
+secrets_client = boto3.client("secretsmanager")
 
 DOWNLOADS_TABLE = os.environ["DOWNLOADS_TABLE_NAME"]
 USERS_TABLE = os.environ["USERS_TABLE_NAME"]
 PROCESSED_VIDEOS_BUCKET = os.environ["PROCESSED_VIDEOS_BUCKET_NAME"]
+USER_COOKIES_BUCKET = os.environ.get("USER_COOKIES_BUCKET_NAME")
+COOKIES_SECRET_ARN = os.environ.get("COOKIES_SECRET_ARN")
 
 downloads_table = dynamodb.Table(DOWNLOADS_TABLE)
 users_table = dynamodb.Table(USERS_TABLE)
 
 MAX_FILESIZE_BYTES = 2 * 1024 * 1024 * 1024  # 2GB safety cap
+FALLBACK_COOKIES_FILE_PATH = "/tmp/fallback_cookies.txt"
+
+QUALITY_HEIGHT_CAP = {"1080p": 1080, "720p": 720, "480p": 480, "360p": 360}
+CONTENT_TYPES = {"mp3": "audio/mpeg", "mp4": "video/mp4"}
 
 
 class TerminalDownloadError(Exception):
@@ -89,12 +96,62 @@ def _mark_failed_and_refund(download_id: str, user_id: str, error_message: str) 
         logger.exception("Failed to refund credit for user %s / download %s", user_id, download_id)
 
 
-def _download_video(video_url: str, work_dir: str) -> tuple[str, str]:
+def _fetch_user_cookies_file(user_id: str) -> str | None:
+    """
+    Each download is processed in its own /tmp/{uuid} work_dir, so unlike
+    the operator-wide fallback (cached across warm invocations), the
+    per-user cookie file is fetched fresh every time - it's small (capped
+    at 100KB by the upload API) and different users hit this on different
+    invocations anyway.
+    """
+    if not USER_COOKIES_BUCKET:
+        return None
+    dest_path = "/tmp/user_cookies.txt"
+    try:
+        s3.download_file(USER_COOKIES_BUCKET, f"{user_id}.txt", dest_path)
+        return dest_path
+    except ClientError as exc:
+        if exc.response.get("Error", {}).get("Code") in ("404", "NoSuchKey"):
+            return None
+        logger.exception("Failed to fetch user cookies for %s", user_id)
+        return None
+
+
+def _fetch_fallback_cookies_file() -> str | None:
+    """
+    Operator-wide fallback cookies (see README), used for users who haven't
+    uploaded their own. Cached on disk for the lifetime of this execution
+    environment. Returns None if unconfigured or still the unpopulated
+    placeholder.
+    """
+    if not COOKIES_SECRET_ARN:
+        return None
+    if os.path.exists(FALLBACK_COOKIES_FILE_PATH):
+        return FALLBACK_COOKIES_FILE_PATH
+
+    try:
+        response = secrets_client.get_secret_value(SecretId=COOKIES_SECRET_ARN)
+        content = response.get("SecretString", "")
+    except ClientError:
+        logger.exception("Failed to fetch fallback YouTube cookies secret")
+        return None
+
+    if not content.strip() or content.lstrip().startswith("# PLACEHOLDER"):
+        return None
+
+    with open(FALLBACK_COOKIES_FILE_PATH, "w") as f:
+        f.write(content)
+    return FALLBACK_COOKIES_FILE_PATH
+
+
+def _resolve_cookies_file(user_id: str) -> str | None:
+    return _fetch_user_cookies_file(user_id) or _fetch_fallback_cookies_file()
+
+
+def _build_ydl_opts(work_dir: str, fmt: str, quality: str, user_id: str) -> dict:
     output_template = os.path.join(work_dir, "%(id)s.%(ext)s")
 
-    ydl_opts = {
-        "format": "bestvideo[ext=mp4][filesize<?2G]+bestaudio[ext=m4a]/best[ext=mp4]/best",
-        "merge_output_format": "mp4",
+    opts = {
         "outtmpl": output_template,
         "max_filesize": MAX_FILESIZE_BYTES,
         "noplaylist": True,
@@ -104,14 +161,53 @@ def _download_video(video_url: str, work_dir: str) -> tuple[str, str]:
         "ffmpeg_location": "/usr/local/bin",
         # The "web" client frequently triggers YouTube's "Sign in to confirm
         # you're not a bot" check for datacenter/cloud IPs (e.g. Lambda).
-        # The android/ios/tv embedded clients aren't subject to that check.
+        # The android/ios embedded clients are less likely to hit it.
         "extractor_args": {"youtube": {"player_client": ["android", "ios", "web"]}},
     }
 
+    cookies_file = _resolve_cookies_file(user_id)
+    if cookies_file:
+        opts["cookiefile"] = cookies_file
+
+    if fmt == "mp3":
+        opts["format"] = "bestaudio/best"
+        opts["postprocessors"] = [
+            {"key": "FFmpegExtractAudio", "preferredcodec": "mp3", "preferredquality": "192"}
+        ]
+    else:
+        height = QUALITY_HEIGHT_CAP.get(quality)
+        if height:
+            opts["format"] = (
+                f"bestvideo[height<={height}][ext=mp4]+bestaudio[ext=m4a]"
+                f"/best[height<={height}][ext=mp4]/best[ext=mp4]/best"
+            )
+        else:
+            opts["format"] = "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best"
+        opts["merge_output_format"] = "mp4"
+
+    return opts
+
+
+def _find_output_file(work_dir: str, video_id: str) -> str:
+    """
+    Post-processing (e.g. mp3 audio extraction) changes the file extension
+    from what prepare_filename() would report pre-processing, so locate the
+    actual output file on disk instead of trusting the original template.
+    """
+    skip_suffixes = (".part", ".ytdl", ".json", ".description", ".ytdl.part")
+    for name in sorted(os.listdir(work_dir)):
+        if name.startswith(video_id) and not name.endswith(skip_suffixes):
+            return os.path.join(work_dir, name)
+    raise TerminalDownloadError("yt-dlp reported success but the output file could not be located.")
+
+
+def _download_video(video_url: str, work_dir: str, fmt: str, quality: str, user_id: str) -> tuple[str, str]:
+    ydl_opts = _build_ydl_opts(work_dir, fmt, quality, user_id)
+
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(video_url, download=True)
-        final_path = ydl.prepare_filename(info)
         title = info.get("title", "video")
+        final_path = _find_output_file(work_dir, info["id"])
         return final_path, title
 
 
@@ -119,6 +215,8 @@ def _process_record(body: dict) -> None:
     download_id = body["downloadId"]
     user_id = body["userId"]
     video_url = body["videoUrl"]
+    fmt = body.get("format", "mp4")
+    quality = body.get("quality", "best")
 
     _mark_processing(download_id)
 
@@ -127,15 +225,20 @@ def _process_record(body: dict) -> None:
 
     try:
         try:
-            local_path, title = _download_video(video_url, work_dir)
+            local_path, title = _download_video(video_url, work_dir, fmt, quality, user_id)
         except yt_dlp.utils.DownloadError as exc:
             raise TerminalDownloadError(str(exc)) from exc
 
         if not os.path.exists(local_path):
             raise TerminalDownloadError("yt-dlp reported success but output file is missing.")
 
-        s3_key = f"{user_id}/{download_id}.mp4"
-        s3.upload_file(local_path, PROCESSED_VIDEOS_BUCKET, s3_key)
+        s3_key = f"{user_id}/{download_id}.{fmt}"
+        s3.upload_file(
+            local_path,
+            PROCESSED_VIDEOS_BUCKET,
+            s3_key,
+            ExtraArgs={"ContentType": CONTENT_TYPES.get(fmt, "application/octet-stream")},
+        )
 
         _mark_completed(download_id, s3_key, title)
         logger.info("Download %s completed for user %s", download_id, user_id)

@@ -35,6 +35,7 @@ export class AppStack extends cdk.Stack {
       downloadsTable: data.downloadsTable,
       rateLimitsTable: data.rateLimitsTable,
       processedVideosBucket: data.processedVideosBucket,
+      userCookiesBucket: data.userCookiesBucket,
       downloadQueue: data.downloadQueue,
       userPool: auth.userPool,
       userPoolClient: auth.userPoolClient,
@@ -43,10 +44,11 @@ export class AppStack extends cdk.Stack {
       corsAllowOrigins,
     });
 
-    new WorkerConstruct(this, "Worker", {
+    const worker = new WorkerConstruct(this, "Worker", {
       usersTable: data.usersTable,
       downloadsTable: data.downloadsTable,
       processedVideosBucket: data.processedVideosBucket,
+      userCookiesBucket: data.userCookiesBucket,
       downloadQueue: data.downloadQueue,
     });
 
@@ -83,5 +85,6 @@ export class AppStack extends cdk.Stack {
     new cdk.CfnOutput(this, "DistributionIdOut", { value: frontend.distribution.distributionId });
     new cdk.CfnOutput(this, "FrontendDeployRoleArnOut", { value: cicd.frontendDeployRole.roleArn });
     new cdk.CfnOutput(this, "InfraDeployRoleArnOut", { value: cicd.infraDeployRole.roleArn });
+    new cdk.CfnOutput(this, "CookiesSecretNameOut", { value: worker.cookiesSecret.secretName });
   }
 }

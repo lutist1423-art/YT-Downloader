@@ -17,6 +17,7 @@ export interface ApiConstructProps {
   downloadsTable: dynamodb.ITable;
   rateLimitsTable: dynamodb.ITable;
   processedVideosBucket: s3.IBucket;
+  userCookiesBucket: s3.IBucket;
   downloadQueue: sqs.IQueue;
   userPool: cognito.IUserPool;
   userPoolClient: cognito.IUserPoolClient;
@@ -40,6 +41,7 @@ export class ApiConstruct extends Construct {
       RATE_LIMITS_TABLE_NAME: props.rateLimitsTable.tableName,
       DOWNLOAD_QUEUE_URL: props.downloadQueue.queueUrl,
       PROCESSED_VIDEOS_BUCKET_NAME: props.processedVideosBucket.bucketName,
+      USER_COOKIES_BUCKET_NAME: props.userCookiesBucket.bucketName,
       CORS_ALLOW_ORIGIN: props.corsAllowOrigins[0],
     };
 
@@ -72,6 +74,14 @@ export class ApiConstruct extends Construct {
     props.downloadsTable.grantReadData(getDownloadFn);
     props.processedVideosBucket.grantRead(getDownloadFn);
 
+    const uploadCookiesFn = makeFn("UploadCookiesFn", "uploadCookies.ts");
+    props.userCookiesBucket.grantPut(uploadCookiesFn);
+    props.usersTable.grantWriteData(uploadCookiesFn);
+
+    const deleteCookiesFn = makeFn("DeleteCookiesFn", "deleteCookies.ts");
+    props.userCookiesBucket.grantDelete(deleteCookiesFn);
+    props.usersTable.grantWriteData(deleteCookiesFn);
+
     // ---- Admin Lambdas ----
     const adminListUsersFn = makeFn("AdminListUsersFn", "adminListUsers.ts");
     props.usersTable.grantReadData(adminListUsersFn);
@@ -92,6 +102,7 @@ export class ApiConstruct extends Construct {
           apigwv2.CorsHttpMethod.GET,
           apigwv2.CorsHttpMethod.POST,
           apigwv2.CorsHttpMethod.PATCH,
+          apigwv2.CorsHttpMethod.DELETE,
           apigwv2.CorsHttpMethod.OPTIONS,
         ],
         maxAge: cdk.Duration.hours(1),
@@ -131,6 +142,18 @@ export class ApiConstruct extends Construct {
       path: "/downloads/{id}",
       methods: [apigwv2.HttpMethod.GET],
       integration: new integrations.HttpLambdaIntegration("GetDownloadInt", getDownloadFn),
+      authorizer: userAuthorizer,
+    });
+    this.httpApi.addRoutes({
+      path: "/me/cookies",
+      methods: [apigwv2.HttpMethod.POST],
+      integration: new integrations.HttpLambdaIntegration("UploadCookiesInt", uploadCookiesFn),
+      authorizer: userAuthorizer,
+    });
+    this.httpApi.addRoutes({
+      path: "/me/cookies",
+      methods: [apigwv2.HttpMethod.DELETE],
+      integration: new integrations.HttpLambdaIntegration("DeleteCookiesInt", deleteCookiesFn),
       authorizer: userAuthorizer,
     });
 

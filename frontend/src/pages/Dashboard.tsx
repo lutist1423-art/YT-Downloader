@@ -1,11 +1,20 @@
-import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import { ChangeEvent, FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import UserHeader from "../components/UserHeader";
 import CopyrightNotice from "../components/CopyrightNotice";
-import { ApiError, createDownload, getDownload, getMe, listDownloads } from "../lib/api";
-import type { DownloadDetail, DownloadStatus, Me } from "../lib/types";
+import {
+  ApiError,
+  createDownload,
+  deleteCookies,
+  getDownload,
+  getMe,
+  listDownloads,
+  uploadCookies,
+} from "../lib/api";
+import type { DownloadDetail, DownloadFormat, DownloadQuality, DownloadStatus, Me } from "../lib/types";
 
 const POLL_INTERVAL_MS = 4500;
 const IN_FLIGHT_STATUSES: DownloadStatus[] = ["QUEUED", "PROCESSING"];
+const MAX_COOKIES_BYTES = 100 * 1024;
 
 function mergeDownload(list: DownloadDetail[], updated: DownloadDetail): DownloadDetail[] {
   const idx = list.findIndex((d) => d.downloadId === updated.downloadId);
@@ -30,14 +39,26 @@ function statusLabel(status: DownloadStatus): string {
   }
 }
 
+function formatQualityLabel(d: DownloadDetail): string {
+  if (d.format === "mp3") return "MP3 audio";
+  return d.quality === "best" ? "MP4 (best)" : `MP4 ${d.quality}`;
+}
+
 export default function Dashboard(): JSX.Element {
   const [me, setMe] = useState<Me | null>(null);
   const [downloads, setDownloads] = useState<DownloadDetail[]>([]);
   const [videoUrl, setVideoUrl] = useState("");
+  const [format, setFormat] = useState<DownloadFormat>("mp4");
+  const [quality, setQuality] = useState<DownloadQuality>("best");
   const [loadingInitial, setLoadingInitial] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+
+  const [cookiesText, setCookiesText] = useState("");
+  const [cookiesBusy, setCookiesBusy] = useState(false);
+  const [cookiesMessage, setCookiesMessage] = useState<string | null>(null);
+  const [cookiesFileName, setCookiesFileName] = useState<string | null>(null);
 
   const downloadsRef = useRef<DownloadDetail[]>([]);
   useEffect(() => {
@@ -98,7 +119,7 @@ export default function Dashboard(): JSX.Element {
 
     setSubmitting(true);
     try {
-      const created = await createDownload(trimmed);
+      const created = await createDownload(trimmed, format, quality);
       setDownloads((prev) => mergeDownload(prev, created));
       setVideoUrl("");
       refreshMe().catch(() => undefined);
@@ -118,6 +139,55 @@ export default function Dashboard(): JSX.Element {
       }
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  function handleCookiesFile(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setCookiesMessage(null);
+    if (file.size > MAX_COOKIES_BYTES) {
+      setCookiesMessage("That file is too large (max 100KB) - a cookies.txt export is normally just a few KB.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setCookiesText(String(reader.result ?? ""));
+      setCookiesFileName(file.name);
+    };
+    reader.onerror = () => setCookiesMessage("Could not read that file.");
+    reader.readAsText(file);
+  }
+
+  async function handleCookiesSave() {
+    if (!cookiesText.trim()) return;
+    setCookiesBusy(true);
+    setCookiesMessage(null);
+    try {
+      await uploadCookies(cookiesText);
+      setCookiesMessage("Cookies saved. New downloads will use them.");
+      setCookiesText("");
+      setCookiesFileName(null);
+      refreshMe().catch(() => undefined);
+    } catch (err) {
+      setCookiesMessage(err instanceof Error ? err.message : "Could not save cookies.");
+    } finally {
+      setCookiesBusy(false);
+    }
+  }
+
+  async function handleCookiesRemove() {
+    setCookiesBusy(true);
+    setCookiesMessage(null);
+    try {
+      await deleteCookies();
+      setCookiesMessage("Cookies removed.");
+      refreshMe().catch(() => undefined);
+    } catch (err) {
+      setCookiesMessage(err instanceof Error ? err.message : "Could not remove cookies.");
+    } finally {
+      setCookiesBusy(false);
     }
   }
 
@@ -158,6 +228,35 @@ export default function Dashboard(): JSX.Element {
               disabled={outOfCredits || submitting}
               onChange={(e) => setVideoUrl(e.target.value)}
             />
+            <div className="download-form__options">
+              <label>
+                Format
+                <select
+                  value={format}
+                  disabled={outOfCredits || submitting}
+                  onChange={(e) => setFormat(e.target.value as DownloadFormat)}
+                >
+                  <option value="mp4">MP4 (video)</option>
+                  <option value="mp3">MP3 (audio only)</option>
+                </select>
+              </label>
+              {format === "mp4" && (
+                <label>
+                  Quality
+                  <select
+                    value={quality}
+                    disabled={outOfCredits || submitting}
+                    onChange={(e) => setQuality(e.target.value as DownloadQuality)}
+                  >
+                    <option value="best">Best available</option>
+                    <option value="1080p">1080p</option>
+                    <option value="720p">720p</option>
+                    <option value="480p">480p</option>
+                    <option value="360p">360p</option>
+                  </select>
+                </label>
+              )}
+            </div>
             <button
               className="btn btn--primary"
               type="submit"
@@ -176,6 +275,54 @@ export default function Dashboard(): JSX.Element {
         </section>
 
         <section className="card">
+          <h2>YouTube cookies</h2>
+          <p className="hint">
+            YouTube sometimes blocks downloads from cloud servers with a "confirm you're not a
+            bot" check. Uploading cookies from a signed-in YouTube session (exported as{" "}
+            <code>cookies.txt</code> via a browser extension) usually avoids this.{" "}
+            <strong>
+              Use a secondary/throwaway Google account, not your main one
+            </strong>{" "}
+            - anyone able to read our servers would be able to act as that session on YouTube for
+            as long as the cookies remain valid. We store the file privately and it is never
+            served back through the app; you can remove it at any time.
+          </p>
+          <p className="hint">
+            Current status:{" "}
+            {me?.hasCookies ? (
+              <strong>cookies uploaded</strong>
+            ) : (
+              <span>none uploaded (downloads use the site-wide fallback, if configured)</span>
+            )}
+          </p>
+          <div className="cookies-form">
+            <input type="file" accept=".txt" onChange={handleCookiesFile} disabled={cookiesBusy} />
+            {cookiesFileName && <span className="hint">Selected: {cookiesFileName}</span>}
+            <div className="cookies-form__actions">
+              <button
+                className="btn btn--small"
+                type="button"
+                disabled={cookiesBusy || !cookiesText.trim()}
+                onClick={handleCookiesSave}
+              >
+                {cookiesBusy ? "Saving..." : "Save cookies"}
+              </button>
+              {me?.hasCookies && (
+                <button
+                  className="btn btn--small btn--danger"
+                  type="button"
+                  disabled={cookiesBusy}
+                  onClick={handleCookiesRemove}
+                >
+                  Remove my cookies
+                </button>
+              )}
+            </div>
+          </div>
+          {cookiesMessage && <p className="hint">{cookiesMessage}</p>}
+        </section>
+
+        <section className="card">
           <h2>Download history</h2>
           {downloads.length === 0 ? (
             <p className="hint">No downloads yet.</p>
@@ -185,6 +332,7 @@ export default function Dashboard(): JSX.Element {
                 <thead>
                   <tr>
                     <th>Video URL</th>
+                    <th>Format</th>
                     <th>Status</th>
                     <th>Requested</th>
                     <th></th>
@@ -196,6 +344,7 @@ export default function Dashboard(): JSX.Element {
                       <td className="table__url" title={d.videoUrl}>
                         {d.title ?? d.videoUrl}
                       </td>
+                      <td>{formatQualityLabel(d)}</td>
                       <td>
                         <span className={`status-badge status-badge--${d.status.toLowerCase()}`}>
                           {statusLabel(d.status)}
