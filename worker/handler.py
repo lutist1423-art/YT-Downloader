@@ -175,14 +175,16 @@ def _build_ydl_opts(work_dir: str, fmt: str, quality: str, user_id: str) -> dict
             {"key": "FFmpegExtractAudio", "preferredcodec": "mp3", "preferredquality": "192"}
         ]
     else:
+        # Don't filter by container (ext=mp4/m4a): the android/ios player
+        # clients we prioritize to dodge the bot-check often only expose
+        # different containers (e.g. webm) for a given video, so a strict
+        # mp4/m4a filter can match nothing. merge_output_format below
+        # already guarantees the final file is remuxed/transcoded to mp4.
         height = QUALITY_HEIGHT_CAP.get(quality)
         if height:
-            opts["format"] = (
-                f"bestvideo[height<={height}][ext=mp4]+bestaudio[ext=m4a]"
-                f"/best[height<={height}][ext=mp4]/best[ext=mp4]/best"
-            )
+            opts["format"] = f"bestvideo[height<={height}]+bestaudio/best[height<={height}]/best"
         else:
-            opts["format"] = "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best"
+            opts["format"] = "bestvideo+bestaudio/best"
         opts["merge_output_format"] = "mp4"
 
     return opts
