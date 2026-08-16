@@ -9,6 +9,7 @@ export class DataConstruct extends Construct {
   public readonly downloadsTable: dynamodb.Table;
   public readonly rateLimitsTable: dynamodb.Table;
   public readonly processedVideosBucket: s3.Bucket;
+  public readonly userCookiesBucket: s3.Bucket;
   public readonly downloadQueue: sqs.Queue;
   public readonly downloadDlq: sqs.Queue;
 
@@ -70,6 +71,19 @@ export class DataConstruct extends Construct {
           expiration: cdk.Duration.days(1),
         },
       ],
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+      autoDeleteObjects: true,
+    });
+
+    // ---- Per-user YouTube cookies (Netscape cookies.txt content) ----
+    // Lets each user supply their own authenticated-session cookies so
+    // downloads aren't all dependent on one shared account getting flagged
+    // by YouTube's bot detection. Sensitive personal data: private,
+    // encrypted, never readable back through the API (write/delete only).
+    this.userCookiesBucket = new s3.Bucket(this, "UserCookiesBucket", {
+      blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
+      encryption: s3.BucketEncryption.S3_MANAGED,
+      enforceSSL: true,
       removalPolicy: cdk.RemovalPolicy.DESTROY,
       autoDeleteObjects: true,
     });

@@ -174,6 +174,31 @@ verify the email, then in the admin dashboard set that user's credit
 balance. Until then they have 0 credits and downloads are blocked with a
 "contact an admin" message.
 
+### 6. YouTube cookies (needed for downloads to actually work)
+
+YouTube increasingly blocks download requests from datacenter/cloud IPs
+(including Lambda) with a "Sign in to confirm you're not a bot" error unless
+yt-dlp presents cookies from a real, signed-in browser session. Two layers:
+
+- **Per-user (self-service):** each user can upload their own
+  `cookies.txt` on their dashboard (`YouTube cookies` section) - stored
+  privately per user in S3, used only for their own downloads, never
+  readable back through the API. This is the primary mechanism and needs
+  no operator action.
+- **Site-wide fallback (optional):** for users who haven't uploaded their
+  own, the worker falls back to one operator-provided cookie set stored in
+  Secrets Manager (`CookiesSecretNameOut` in the stack outputs). To set it:
+  1. In a browser, sign in to a **secondary/throwaway** Google account (not
+     your main one - see the security note below) and export cookies via
+     an extension like "Get cookies.txt LOCALLY".
+  2. `aws secretsmanager put-secret-value --secret-id <CookiesSecretNameOut> --secret-string file://cookies.txt --region eu-central-1`
+
+Either way, the cookies belong to whichever Google account exported them -
+treat them like a password. Anyone with access to read them could act as
+that YouTube session for as long as the cookies stay valid, which is why
+the app never exposes uploaded cookies back through any API response and
+strongly suggests a secondary account rather than a personal one.
+
 ## Local development
 
 ```bash
