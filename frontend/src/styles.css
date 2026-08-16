@@ -244,6 +244,35 @@ a {
   color: var(--color-text);
 }
 
+.cookies-howto {
+  background: var(--color-info-bg, #eef4fb);
+  border-radius: 8px;
+  padding: 0.6rem 0.9rem;
+  margin: 0.5rem 0;
+  font-size: 0.88rem;
+  color: var(--color-text);
+}
+
+.cookies-howto summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--color-primary);
+}
+
+.cookies-howto ol {
+  margin: 0.6rem 0 0.6rem 1.1rem;
+  padding: 0;
+}
+
+.cookies-howto li {
+  margin-bottom: 0.4rem;
+}
+
+.cookies-howto p {
+  margin: 0.4rem 0 0;
+  color: var(--color-text-muted);
+}
+
 .cookies-form {
   display: flex;
   flex-direction: column;
