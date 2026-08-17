@@ -20,11 +20,14 @@ export class FrontendConstruct extends Construct {
   constructor(scope: Construct, id: string, props: FrontendConstructProps) {
     super(scope, id);
 
+    // Temporarily DESTROY + autoDeleteObjects (was RETAIN) as part of a full
+    // project teardown - revert if this stack is ever redeployed for real use.
     this.siteBucket = new s3.Bucket(this, "SiteBucket", {
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
       encryption: s3.BucketEncryption.S3_MANAGED,
       enforceSSL: true,
-      removalPolicy: cdk.RemovalPolicy.RETAIN,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+      autoDeleteObjects: true,
     });
 
     this.distribution = new cloudfront.Distribution(this, "Distribution", {
