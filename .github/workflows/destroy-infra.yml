@@ -1,0 +1,42 @@
+name: Destroy infra (full teardown)
+
+# Manual-only, one-off teardown of the entire YT-Downloader AWS deployment.
+# Deliberately NOT triggered on push - this is destructive and irreversible.
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write # required for AWS OIDC
+  contents: read
+
+concurrency:
+  group: deploy-yt-downloader-infra
+  cancel-in-progress: false
+
+jobs:
+  destroy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: infra/package-lock.json
+
+      - working-directory: infra
+        run: npm ci
+
+      - working-directory: backend
+        run: npm ci
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_INFRA_DEPLOY_ROLE_ARN }}
+          aws-region: eu-central-1
+
+      - name: cdk destroy
+        working-directory: infra
+        run: npx cdk destroy --all --force

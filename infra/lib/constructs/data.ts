@@ -20,11 +20,13 @@ export class DataConstruct extends Construct {
     // No explicit tableName: RETAIN + a fixed physical name means a rolled-
     // back/deleted stack leaves an orphaned table that then collides by
     // name on the next deploy. Let CloudFormation generate a unique name.
+    // Temporarily DESTROY (was RETAIN) as part of a full project teardown -
+    // revert to RETAIN if this stack is ever redeployed for real use.
     this.usersTable = new dynamodb.Table(this, "UsersTable", {
       partitionKey: { name: "userId", type: dynamodb.AttributeType.STRING },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       pointInTimeRecovery: true,
-      removalPolicy: cdk.RemovalPolicy.RETAIN,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
     this.usersTable.addGlobalSecondaryIndex({
       indexName: "EmailIndex",
@@ -33,11 +35,12 @@ export class DataConstruct extends Construct {
     });
 
     // ---- Downloads table ----
+    // Temporarily DESTROY (was RETAIN) as part of a full project teardown.
     this.downloadsTable = new dynamodb.Table(this, "DownloadsTable", {
       partitionKey: { name: "downloadId", type: dynamodb.AttributeType.STRING },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       pointInTimeRecovery: true,
-      removalPolicy: cdk.RemovalPolicy.RETAIN,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
     this.downloadsTable.addGlobalSecondaryIndex({
       indexName: "UserIndex",

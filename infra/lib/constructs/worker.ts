@@ -29,13 +29,14 @@ export class WorkerConstruct extends Construct {
     // authenticated browser session. This starts as an empty placeholder;
     // an operator must populate it after deploy (see README) with a real
     // exported cookies.txt for downloads to work reliably.
+    // Temporarily DESTROY (was RETAIN) as part of a full project teardown.
     this.cookiesSecret = new secretsmanager.Secret(this, "YoutubeCookiesSecret", {
       description:
         "Netscape-format cookies.txt content from an authenticated YouTube session, used by yt-dlp to avoid bot-check blocks.",
       secretStringValue: cdk.SecretValue.unsafePlainText(
         "# PLACEHOLDER - replace with a real exported cookies.txt (see README)\n"
       ),
-      removalPolicy: cdk.RemovalPolicy.RETAIN,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
 
     this.workerFn = new lambda.DockerImageFunction(this, "DownloadWorkerFn", {
