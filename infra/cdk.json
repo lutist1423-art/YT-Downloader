@@ -32,7 +32,7 @@
     "appName": "yt-downloader",
     "domainName": "download.dillydally.ch",
     "parentHostedZoneDomain": "dillydally.ch",
-    "githubRepo": "lutist1423-art/YT-Downloader",
+    "githubRepo": "lutist1423-art/yt-downloader",
     "githubBranch": "main",
     "awsRegion": "eu-central-1",
     "githubOidcProviderExists": true
